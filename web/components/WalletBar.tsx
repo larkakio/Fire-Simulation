@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { base } from "wagmi/chains";
 import {
   useChainId,
   useConnect,
+  useConnectors,
   useConnection,
   useDisconnect,
   useSwitchChain,
@@ -13,10 +15,16 @@ import {
 export function WalletBar() {
   const { address, isConnected } = useConnection();
   const chainId = useChainId();
-  const { connectAsync, connectors, isPending: isConnecting } = useConnect();
+  const { connectAsync, isPending: isConnecting } = useConnect();
+  const connectors = useConnectors();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const wrong = isConnected && chainId !== base.id;
 
@@ -28,6 +36,63 @@ export function WalletBar() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sheetOpen]);
+
+  const sheet =
+    sheetOpen && isClient ? (
+      <div
+        className="fixed inset-0 z-[9999] flex flex-col justify-end bg-black/75 backdrop-blur-sm"
+        role="presentation"
+        style={{ WebkitTapHighlightColor: "transparent" }}
+        onClick={() => setSheetOpen(false)}
+      >
+        <div
+          className="max-h-[75vh] overflow-auto rounded-t-2xl border border-cyan-500/30 bg-zinc-950 p-4 pb-6 shadow-[0_-8px_40px_rgba(0,255,255,0.12)]"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-label="Choose wallet"
+          aria-modal="true"
+        >
+          <p className="mb-3 text-center font-mono text-xs uppercase tracking-widest text-cyan-200/80">
+            Connect
+          </p>
+          {connectors.length === 0 ? (
+            <p className="px-2 text-center text-[12px] leading-relaxed text-zinc-400">
+              No wallet connectors yet. Try again in a moment, open this page in
+              the Base app, or install a browser wallet (e.g. MetaMask).
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {connectors.map((connector) => (
+                <li key={connector.uid}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await connectAsync({ connector, chainId: base.id });
+                        setSheetOpen(false);
+                      } catch {
+                        /* user rejected */
+                      }
+                    }}
+                    className="w-full rounded-lg border border-cyan-500/25 bg-black/50 py-3.5 text-left text-sm text-cyan-100 hover:border-cyan-400/60 active:bg-cyan-950/40"
+                  >
+                    {connector.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            className="mt-4 w-full touch-manipulation py-3 text-xs text-zinc-500"
+            onClick={() => setSheetOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ) : null;
 
   return (
     <header className="relative z-40 border-b border-cyan-500/30 bg-black/60 backdrop-blur-md">
@@ -49,7 +114,7 @@ export function WalletBar() {
               type="button"
               onClick={() => setSheetOpen(true)}
               disabled={isConnecting}
-              className="rounded border border-cyan-400/60 bg-cyan-950/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
+              className="touch-manipulation rounded border border-cyan-400/60 bg-cyan-950/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.35)]"
             >
               {isConnecting ? "…" : "Connect wallet"}
             </button>
@@ -73,52 +138,7 @@ export function WalletBar() {
         </div>
       ) : null}
 
-      {sheetOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70 backdrop-blur-sm"
-          role="presentation"
-          onClick={() => setSheetOpen(false)}
-        >
-          <div
-            className="max-h-[70vh] overflow-auto rounded-t-2xl border border-cyan-500/30 bg-zinc-950 p-4 shadow-[0_-8px_40px_rgba(0,255,255,0.12)]"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-label="Choose wallet"
-          >
-            <p className="mb-3 text-center font-mono text-xs uppercase tracking-widest text-cyan-200/80">
-              Connect
-            </p>
-            <ul className="flex flex-col gap-2">
-              {connectors.map((connector) => (
-                <li key={connector.uid}>
-                  <button
-                    type="button"
-                    disabled={false}
-                    onClick={async () => {
-                      try {
-                        await connectAsync({ connector, chainId: base.id });
-                        setSheetOpen(false);
-                      } catch {
-                        /* user rejected */
-                      }
-                    }}
-                    className="w-full rounded-lg border border-cyan-500/25 bg-black/50 py-3 text-left text-sm text-cyan-100 hover:border-cyan-400/60 disabled:opacity-40"
-                  >
-                    {connector.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button
-              type="button"
-              className="mt-3 w-full py-2 text-xs text-zinc-500"
-              onClick={() => setSheetOpen(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {sheet ? createPortal(sheet, document.body) : null}
     </header>
   );
 }
