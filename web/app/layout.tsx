@@ -16,9 +16,13 @@ const dmSans = DM_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-const baseAppId = process.env.NEXT_PUBLIC_BASE_APP_ID ?? "fire-simulation-app";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://fire-simulation-xi.vercel.app";
+const baseAppId =
+  process.env.NEXT_PUBLIC_BASE_APP_ID ?? "69e48acc86272d70f28d742f";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Fire Simulation",
   description:
     "Neon tactical fire simulation — swipe coolant, save the core, check in on Base.",
